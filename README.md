@@ -39,6 +39,7 @@ token = YOUR_BOT_TOKEN_HERE
 python bot.py
 
 Структура базы данных
+![Схема БД](Схема БД My_1English_Bot.png)
 Таблица 1: common_words - Общие слова для всех пользователей
 id SERIAL PRIMARY KEY
 russian TEXT NOT NULL
