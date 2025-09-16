@@ -76,6 +76,21 @@ class Database:
             )
             ''')
 
+            # Таблица ежедневной статистики
+            cursor.execute('''
+            CREATE TABLE IF NOT EXISTS daily_stats (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                practice_date DATE NOT NULL,
+                correct_answers INTEGER DEFAULT 0,
+                total_attempts INTEGER DEFAULT 0,
+                words_learned INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, practice_date)
+            )
+            ''')
+
             # Проверяем, есть ли уже базовые слова
             cursor.execute("SELECT COUNT(*) FROM common_words")
             if cursor.fetchone()[0] == 0:
@@ -108,7 +123,8 @@ class Database:
                     ('друг', 'friend')
                 ]
 
-                insert_query = "INSERT INTO common_words (russian, english) VALUES (%s, %s)"
+                insert_query = """INSERT INTO common_words (russian, english)
+                VALUES (%s, %s)"""
                 cursor.executemany(insert_query, basic_words)
                 logger.info("Добавлены базовые слова в common_words")
 
@@ -134,12 +150,16 @@ class Database:
             common_words = cursor.fetchall()
 
             # Получаем пользовательские слова
-            cursor.execute("SELECT russian, english FROM user_words WHERE user_id = %s", (user_id,))
+            cursor.execute(
+                "SELECT russian, english FROM user_words WHERE user_id = %s",
+                (user_id,)
+                )
             user_words = cursor.fetchall()
 
             return common_words + user_words
         except Exception as e:
-            logger.error(f"Ошибка получения слов для пользователя {user_id}: {e}")
+            logger.error(f"""Ошибка получения слов для пользователя
+                         {user_id}: {e}""")
             return []
         finally:
             cursor.close()
@@ -150,7 +170,10 @@ class Database:
         cursor = conn.cursor()
 
         try:
-            cursor.execute("SELECT 1 FROM user_words WHERE user_id = %s AND english = %s", (user_id, english))
+            cursor.execute("""SELECT 1 FROM user_words
+                           WHERE user_id = %s AND english = %s""",
+                           (user_id, english)
+                           )
             return cursor.fetchone() is not None
         except Exception as e:
             logger.error(f"Ошибка проверки пользовательского слова: {e}")
@@ -174,14 +197,16 @@ class Database:
             success = cursor.rowcount > 0
 
             if success:
-                logger.info(f"Пользователь {user_id} добавил слово: {russian} - {english}")
+                logger.info(f"""Пользователь {user_id}
+                            добавил слово: {russian} - {english}""")
                 # Обновляем статистику количества слов
                 self._update_user_stats_words(user_id)
 
             return success
         except Exception as e:
             conn.rollback()
-            logger.error(f"Ошибка добавления слова для пользователя {user_id}: {e}")
+            logger.error(f"""Ошибка добавления слова для пользователя
+                         {user_id}: {e}""")
             return False
         finally:
             cursor.close()
@@ -207,7 +232,8 @@ class Database:
             return success
         except Exception as e:
             conn.rollback()
-            logger.error(f"Ошибка удаления слова для пользователя {user_id}: {e}")
+            logger.error(f"""Ошибка удаления слова для пользователя
+                         {user_id}: {e}""")
             return False
         finally:
             cursor.close()
@@ -219,11 +245,14 @@ class Database:
 
         try:
             # Проверяем в общих словах
-            cursor.execute("SELECT 1 FROM common_words WHERE english = %s", (english,))
+            cursor.execute("SELECT 1 FROM common_words WHERE english = %s",
+                           (english,))
             common_exists = cursor.fetchone() is not None
 
             # Проверяем в пользовательских словах
-            cursor.execute("SELECT 1 FROM user_words WHERE user_id = %s AND english = %s", (user_id, english))
+            cursor.execute("""SELECT 1 FROM user_words
+                           WHERE user_id = %s AND english = %s""",
+                           (user_id, english))
             user_exists = cursor.fetchone() is not None
 
             return common_exists or user_exists
@@ -240,7 +269,8 @@ class Database:
 
         try:
             cursor.execute("""
-                SELECT russian, english, correct_answers, total_attempts, last_practiced
+                SELECT russian, english, correct_answers,
+                total_attempts, last_practiced
                 FROM user_words
                 WHERE user_id = %s
                 ORDER BY created_at DESC
@@ -305,7 +335,9 @@ class Database:
         cursor = conn.cursor()
 
         try:
-            cursor.execute("SELECT COUNT(*) FROM user_words WHERE user_id = %s", (user_id,))
+            cursor.execute("""SELECT COUNT(*)
+                           FROM user_words WHERE user_id = %s""",
+                           (user_id,))
             word_count = cursor.fetchone()[0]
 
             cursor.execute("""
@@ -318,7 +350,8 @@ class Database:
             conn.commit()
         except Exception as e:
             conn.rollback()
-            logger.error(f"Ошибка обновления статистики слов пользователя {user_id}: {e}")
+            logger.error(f"""Ошибка обновления статистики слов пользователя
+                         {user_id}: {e}""")
         finally:
             cursor.close()
 
@@ -331,7 +364,10 @@ class Database:
             today = date.today()
 
             # Получаем текущую статистику
-            cursor.execute("SELECT last_practice_date, current_streak FROM user_stats WHERE user_id = %s", (user_id,))
+            cursor.execute("""SELECT last_practice_date, current_streak
+                           FROM user_stats
+                           WHERE user_id = %s""",
+                           (user_id,))
             result = cursor.fetchone()
 
             last_practice_date = result[0] if result else None
@@ -356,8 +392,9 @@ class Database:
             # Обновляем общую статистику
             cursor.execute("""
                 INSERT INTO user_stats
-                (user_id, total_correct, total_attempts, current_streak, max_streak,
-                 last_practice_date, total_practice_days, updated_at)
+                (user_id, total_correct, total_attempts, current_streak,
+                max_streak, last_practice_date, total_practice_days,
+                updated_at)
                 VALUES (%s, %s, %s, %s, %s, %s,
                         CASE WHEN %s THEN 1 ELSE 0 END, CURRENT_TIMESTAMP)
                 ON CONFLICT (user_id)
@@ -368,19 +405,38 @@ class Database:
                     max_streak = GREATEST(user_stats.max_streak, %s),
                     last_practice_date = %s,
                     total_practice_days = user_stats.total_practice_days +
-                                         CASE WHEN user_stats.last_practice_date != %s THEN 1 ELSE 0 END,
+                    CASE WHEN user_stats.last_practice_date != %s
+                    THEN 1 ELSE 0 END,
                     updated_at = CURRENT_TIMESTAMP
             """, (
                 user_id,
-                1 if is_correct else 0, 1, new_streak, max_streak, today, last_practice_date != today,
+                1 if is_correct else 0, 1, new_streak, max_streak, today,
+                last_practice_date != today,
                 1 if is_correct else 0, new_streak, max_streak, today, today
+            ))
+
+            # Обновляем ежедневную статистику
+            cursor.execute("""
+                INSERT INTO daily_stats (user_id, practice_date,
+                correct_answers, total_attempts)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (user_id, practice_date)
+                DO UPDATE SET
+                    correct_answers = daily_stats.correct_answers + %s,
+                    total_attempts = daily_stats.total_attempts + 1,
+                    updated_at = CURRENT_TIMESTAMP
+            """, (
+                user_id, today,
+                1 if is_correct else 0, 1,
+                1 if is_correct else 0
             ))
 
             conn.commit()
             return True
         except Exception as e:
             conn.rollback()
-            logger.error(f"Ошибка обновления статистики пользователя {user_id}: {e}")
+            logger.error(f"""Ошибка обновления статистики пользователя
+                         {user_id}: {e}""")
             return False
         finally:
             cursor.close()
@@ -403,7 +459,12 @@ class Database:
             if result:
                 total_correct = result[1] or 0
                 total_attempts = result[2] or 0
-                accuracy = round((total_correct / total_attempts * 100) if total_attempts > 0 else 0, 1)
+                accuracy = round(
+                    (total_correct / total_attempts * 100)
+                    if total_attempts > 0
+                    else 0,
+                    1
+                    )
 
                 return {
                     'total_words': result[0] or 0,
@@ -417,32 +478,77 @@ class Database:
                 }
             return None
         except Exception as e:
-            logger.error(f"Ошибка получения статистики пользователя {user_id}: {e}")
+            logger.error(f"""Ошибка получения статистики пользователя
+                         {user_id}: {e}""")
             return None
         finally:
             cursor.close()
 
     def get_today_stats(self, user_id):
         """Получение статистики за сегодня"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
         try:
-            # Для сегодняшней статистики используем общую статистику
-            stats = self.get_user_stats(user_id)
-            if stats and stats['last_practice_date'] == date.today():
+            today = date.today()
+            cursor.execute("""
+                SELECT correct_answers, total_attempts
+                FROM daily_stats
+                WHERE user_id = %s AND practice_date = %s
+            """, (user_id, today))
+
+            result = cursor.fetchone()
+            if result:
                 return {
-                    'total_correct_today': stats['total_correct'],
-                    'total_attempts_today': stats['total_attempts']
+                    'total_correct_today': result[0] or 0,
+                    'total_attempts_today': result[1] or 0
                 }
             return {'total_correct_today': 0, 'total_attempts_today': 0}
         except Exception as e:
-            logger.error(f"Ошибка получения сегодняшней статистики пользователя {user_id}: {e}")
+            logger.error(f"""Ошибка получения сегодняшней статистики
+                         пользователя {user_id}: {e}""")
             return {'total_correct_today': 0, 'total_attempts_today': 0}
+        finally:
+            cursor.close()
+
+    def get_weekly_stats(self, user_id):
+        """Получение статистики за последние 7 дней"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute("""
+                SELECT practice_date, correct_answers, total_attempts
+                FROM daily_stats
+                WHERE user_id = %s
+                AND practice_date >= CURRENT_DATE - INTERVAL '7 days'
+                ORDER BY practice_date DESC
+            """, (user_id,))
+
+            results = cursor.fetchall()
+            weekly_stats = []
+            for result in results:
+                weekly_stats.append({
+                    'date': result[0],
+                    'correct_answers': result[1] or 0,
+                    'total_attempts': result[2] or 0,
+                    'accuracy': round(
+                        (result[1] / result[2] * 100)
+                        if result[2] > 0
+                        else 0,
+                        1
+                        )
+                })
+            return weekly_stats
+        except Exception as e:
+            logger.error(f"""Ошибка получения недельной статистики
+                         пользователя {user_id}: {e}""")
+            return []
+        finally:
+            cursor.close()
 
     def close(self):
         """Закрытие соединения с базой данных"""
         if self.connection and not self.connection.closed:
             self.connection.close()
             logger.info("Соединение с базой данных закрыто")
-
-
-# Создаем глобальный экземпляр БД
-db = Database()
